@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 echo "Running BaseBuddy with Docker locally."
 
 if [[ ! -n $1 ]];
