@@ -8,6 +8,9 @@ import numpy
 
 from dnachisel import *
 from Bio import Seq, SeqIO
+from streamlit_searchbox import st_searchbox
+from thefuzz import process
+from functools import reduce
 
 
 # Note that this, which is gitignored, is also excluded from gcloud builds.
@@ -16,16 +19,42 @@ from Bio import Seq, SeqIO
 COCOPUTS_DB_FNAME = "data/cocoput_table.tsv"
 
 
-@st.experimental_memo
-def get_cocoput_organism_list():
+# @st.experimental_memo
+@st.experimental_singleton
+def get_cocoput_organism_series():
     # df = pd.read_csv('220916_codon_analysis/220926_genome_codons.tsv', sep='\t', index_col=False)
     df = pd.read_csv(COCOPUTS_DB_FNAME, sep="\t", index_col=False)
     # df = pd.read_csv('220916_codon_analysis/o537-genbank_species.tsv', sep='\t', index_col=False)
-    return (
+    return pd.Series(
         df.apply(lambda r: f"{r['Species']} (TaxID: {r['Taxid']})", axis=1)
         .unique()
-        .tolist()
     )
+
+
+@st.experimental_singleton
+def get_cocoput_organism_list():
+    return get_cocoput_organism_series().tolist()
+
+
+def search_organisms(searchterm) -> List[str]:
+    # print(f'search term: {searchterm}', flush=True)
+    matches = get_cocoput_organism_series()
+    matches = matches[reduce((lambda a, b: a & b), [matches.str.lower().str.contains(t.lower()) for t in searchterm.split()])]
+    # for term in [t.lower() for t in searchterm.split()]:
+    #     matches = matches[matches.str.contains(term)]
+    if matches.shape[0] > 100:
+        matches = matches.iloc[:100]
+    # def matches_filter(item):
+    #     item_lower = item.lower()
+    #     for term in terms:
+    #         if not term.contains(item_lower):
+    #             return False
+    #     return True
+    # matches = [t for t in get_cocoput_organism_list() if matches_filter(t)]
+    # matches = process.extract(searchterm, get_cocoput_organism_list(), 50)
+    # matches = get_close_matches(searchterm, get_cocoput_organism_list(), 50)
+    # print(matches, flush=True)
+    return matches.tolist() #[match[0] for match in matches]
 
 
 def get_taxid_from_cocoput_name(cocoput_name):
@@ -141,9 +170,16 @@ with col1:
     )
 
 with col2:
-    target_organism = st.selectbox("target organism", get_cocoput_organism_list())
-    target_taxid = get_taxid_from_cocoput_name(target_organism)
-    target_coding_table = get_codon_table_for_taxid(target_taxid)
+    st.caption('target organism')
+    # target_organism = st.selectbox("target organism", get_cocoput_organism_list())
+    target_organism = (st_searchbox(
+        search_organisms,
+        key="target_searchbox",
+    ) or "")
+    # print(f'TARGET: {target_organism}', flush=True)
+
+    target_taxid = get_taxid_from_cocoput_name(target_organism) if target_organism else None
+    target_coding_table = get_codon_table_for_taxid(target_taxid) if target_taxid else None
 
     if optimization_method == "harmonize_rca":
         source_organism = st.selectbox("source organism", get_cocoput_organism_list())

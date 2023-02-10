@@ -2,3 +2,5 @@ pandas
 streamlit==1.17.0
 dnachisel
 biopython
+streamlit-searchbox
+thefuzz
