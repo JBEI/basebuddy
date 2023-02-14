@@ -8,6 +8,7 @@ import numpy
 
 from dnachisel import *
 from Bio import Seq, SeqIO
+from Bio.Restriction.Restriction_Dictionary import rest_dict
 
 
 # Note that this, which is gitignored, is also excluded from gcloud builds.
@@ -90,9 +91,7 @@ with c2:
 
 st.write(
     """
-Recode genes for your target organism.
-
-Enter your native coding sequence below.
+An open-source based codon optimization tool for true transparency and reproducible results. 
 """
 )
 
@@ -154,9 +153,9 @@ with col2:
 
 
 original_fasta_str = st.text_area(
-    "native coding sequence",
-    ">gene\nATGAGTAGT",
-    help=f"Input the native coding sequence.",
+    "Insert your native nucleotide sequence(s) in FASTA format:",
+    ">example_sequence\nATGAGTAGT",
+    help=f"It is important to only use the native coding sequence because some optimization methods calculate the relative codon adaptation (RCA) based on the inserted sequence.",
 )
 with StringIO(original_fasta_str) as fio:
     records = list(SeqIO.parse(fio, "fasta"))
@@ -165,43 +164,46 @@ if len(records) == 0:
     st.stop()
 
 
+# A list of constraints to impose, including cut site constraints.
+cut_site_constraints = []
+
 with st.expander("Advanced Settings"):
     homopolycols = st.columns(4)
     with homopolycols[0]:
         poly_a_maxlength = st.number_input(
-            "Poly As",
+            "Avoid poly As",
             value=9,
             min_value=1,
             max_value=15,
             step=1,
-            help="TODO: write help text",
+            help="Set the allowed maximum length of consecutive As.",
         )
     with homopolycols[1]:
         poly_t_maxlength = st.number_input(
-            "Poly Ts",
+            "Avoid poly Ts",
             value=9,
             min_value=1,
             max_value=15,
             step=1,
-            help="TODO: write help text",
+            help="Set the allowed maximum length of consecutive Ts.",
         )
     with homopolycols[2]:
         poly_c_maxlength = st.number_input(
-            "Poly Cs",
+            "Avoid poly Cs",
             value=6,
             min_value=1,
             max_value=15,
             step=1,
-            help="TODO: write help text",
+            help="Set the allowed maximum length of consecutive Cs.",
         )
     with homopolycols[3]:
         poly_g_maxlength = st.number_input(
-            "Poly Gs",
+            "Avoid poly Gs",
             value=6,
             min_value=1,
             max_value=15,
             step=1,
-            help="TODO: write help text",
+            help="Set the allowed maximum length of consecutive Gs.",
         )
 
     hairpin_c1, hairpin_c2 = st.columns((1, 1))
@@ -212,7 +214,7 @@ with st.expander("Advanced Settings"):
             min_value=1,
             max_value=100,
             step=1,
-            help="TODO: write help text",
+            help="Set the allowed maximum hairpin stem size.",
         )
     with hairpin_c2:
         hairpin_window = st.number_input(
@@ -221,8 +223,76 @@ with st.expander("Advanced Settings"):
             min_value=50,
             max_value=500,
             step=1,
-            help="TODO: write help text",
+            help="Define the minimum distance between hairpins.",
         )
+    
+    enforce_gc = st.columns(3)
+    with enforce_gc[0]:
+        gc_minimum = st.number_input(
+            "Min. GC-content",
+            value=0.3,
+            min_value=0.1,
+            max_value=0.9,
+            step=0.01,
+            help="Define the minium GC-content in a given window."
+        )    
+
+    with enforce_gc[1]:    
+        gc_maximum = st.number_input(
+            "Max. GC-content",
+            value=0.75,
+            min_value=0.1,
+            max_value=0.9,
+            step=0.01,
+            help="Define the maximum GC-content in a given window."
+        )
+
+    with enforce_gc[2]:
+        gc_window = st.number_input(
+            "GC-content Window",
+            value=50,
+            min_value=10,
+            max_value=200,
+            step=1,
+            help="Define the window to enforce the set GC-content."
+        )
+        
+
+    restriction_sites = st.multiselect("Avoid cut sites",options=rest_dict,
+        default=['BamHI', 'NdeI', 'XhoI', 'SpeI', 'BsaI']
+        )
+    for restricition_site in restriction_sites:
+        cut_site_constraints.append(AvoidPattern(restricition_site+"_site")) 
+
+    uniquify_kmers = st.columns(2)
+    with uniquify_kmers[0]:
+        kmers_value = st.number_input(
+            "Uniquify All K-mers",
+            value=10,
+            min_value=1,
+            max_value=20,
+            step=1,
+            help="The default value will ensure lower DNA synthesis diffculty due to less repetitive sequences. Changing to a lower value not recommended."
+        )
+    with uniquify_kmers[1]:
+        kmers_rev = st.checkbox(
+            "Include reverse complement",
+            value=True,
+            help="Uniquify the k-mers of the reverse complement."
+        )
+       
+    randomize_numpy_seed = st.checkbox(
+        "Numpy random generator",
+        value=False,
+        help="This ensures reproducible results. With this checked, an identical input seqeunce will always result in an identical output. However, unchecking this should not affect codon optimization result."
+        )
+    
+        
+
+    
+    
+    
+
 
 # Do some input validation.
 if not target_coding_table:
@@ -241,13 +311,15 @@ objectives_logs = []
 recodings = []
 try:
     for record in records:
-        numpy.random.seed(
-            123
-        )  # This will ensure that the result of the optimization is always the same
+
+        if randomize_numpy_seed:
+            numpy.random.seed(None)
+        else:
+            numpy.random.seed(123)
         problem = DnaOptimizationProblem(
             sequence=record,
             constraints=[
-                UniquifyAllKmers(10, include_reverse_complement=True),
+                UniquifyAllKmers(kmers_value, include_reverse_complement=kmers_rev),
                 AvoidHairpins(
                     stem_size=hairpin_stem_size, hairpin_window=hairpin_window
                 ),
@@ -255,14 +327,9 @@ try:
                 AvoidPattern(str(poly_t_maxlength) + "xT"),
                 AvoidPattern(str(poly_c_maxlength) + "xC"),
                 AvoidPattern(str(poly_g_maxlength) + "xG"),
-                AvoidPattern("NdeI_site"),
-                AvoidPattern("XhoI_site"),
-                AvoidPattern("SpeI_site"),
-                AvoidPattern("BamHI_site"),
-                AvoidPattern("BsaI_site"),
-                EnforceGCContent(mini=0.3, maxi=0.75, window=50),
+                EnforceGCContent(mini=gc_minimum, maxi=gc_maximum, window=gc_window),
                 EnforceTranslation(),
-            ],
+            ] + cut_site_constraints,
             objectives=[
                 CodonOptimize(
                     method=optimization_method,

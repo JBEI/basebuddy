@@ -14,4 +14,4 @@ fi
 echo "Connect using port $PORT.\n\n"
 
 docker build . -t basebuddy
-docker run -v "${pwd}:/app:ro" -p "$PORT:8080" -i basebuddy
+docker run -v "$(pwd):/app:ro" -p "$PORT:8080" -i basebuddy
