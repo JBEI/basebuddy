@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 import re
+from datetime import datetime
+
 
 import numpy
 
@@ -39,6 +41,7 @@ def get_cocoput_organism_list():
 
 def search_organisms(searchterm) -> List[str]:
     # print(f'search term: {searchterm}', flush=True)
+    print(f'Searching for {searchterm}', flush=True)
     matches = get_cocoput_organism_series()
     matches = matches[reduce((lambda a, b: a & b), [matches.str.lower().str.contains(t.lower()) for t in searchterm.split()])]
     # for term in [t.lower() for t in searchterm.split()]:
@@ -118,9 +121,23 @@ c1, c2, c3 = st.columns((1, 5, 1))
 with c2:
     st.image("resources/logo/png/logo-no-background.png")  # , width=500
 
-st.write(
-    """
-An open-source based codon optimization tool for true transparency and reproducible results. 
+st.write("""
+Instructions:
+
+1.) Choose your desired optimization method.
+
+2.) Specify your target organism.
+
+3.) Paste your coding sequence(s) into the textbox below and press Enter or upload a (multi-)FASTA file.
+
+4.) Click the "Download Result(s)" button to generate a FASTA file with your optimized sequence(s).
+
+This is the beta version of BaseBuddy and the layout might differ from the final version. 
+However, basic codon optimizations should work as expected. 
+Also, check out the advanced settings if you have special requirements for your optimized sequence 
+(e.g. avoiding certain cut sites other than our default set).
+
+For questions or concerns please email Matthias (mschmidt@lbl.gov) or Jacob (JBR@lbl.gov)
 """
 )
 
@@ -159,7 +176,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     optimization_method = st.radio(
-        "Optimization Method",
+        "**Optimization Method**",
         ["use_best_codon", "match_codon_usage", "harmonize_rca"],
         key="visibility",
         # help='Choose the optimization method, harmonize_rca is recommended.'
@@ -169,34 +186,50 @@ with col1:
     )
 
 with col2:
-    st.caption('target organism')
-    # target_organism = st.selectbox("target organism", get_cocoput_organism_list())
-    target_organism = (st_searchbox(
-        search_organisms,
-        key="target_searchbox",
-    ) or "")
+    target_organism = st.selectbox("**Target Organism**", get_cocoput_organism_list())
+    # st.caption('**Target Organism**')
+    # target_organism = (st_searchbox(
+    #     search_organisms,
+    #     key="target_searchbox",
+    # ) or "")
     # print(f'TARGET: {target_organism}', flush=True)
 
     target_taxid = get_taxid_from_cocoput_name(target_organism) if target_organism else None
     target_coding_table = get_codon_table_for_taxid(target_taxid) if target_taxid else None
 
     if optimization_method == "harmonize_rca":
-        source_organism = st.selectbox("source organism", get_cocoput_organism_list())
-        source_taxid = get_taxid_from_cocoput_name(source_organism)
-        source_coding_table = get_codon_table_for_taxid(source_taxid)
+        # source_organism =  (st_searchbox(
+        #     search_organisms,
+        #     key="source_organism",
+        # ) or "")  #st.selectbox("**Source Organism**", get_cocoput_organism_list())
+        source_organism = st.selectbox("**Source Organism**", get_cocoput_organism_list())
+
+        source_taxid = get_taxid_from_cocoput_name(source_organism) if source_organism else None
+        source_coding_table = get_codon_table_for_taxid(source_taxid) if source_taxid else None
     else:
         source_coding_table = None
 
 
 original_fasta_str = st.text_area(
-    "Insert your native nucleotide sequence(s) in FASTA format:",
-    ">example_sequence\nATGAGTAGT",
+    "**Insert your native nucleotide sequence(s) in FASTA format:**",
+    ">example_sequence1\nATGAGTAGT\n>example_sequence2\nATGGTGAATTTG",
     help=f"It is important to only use the native coding sequence because some optimization methods calculate the relative codon adaptation (RCA) based on the inserted sequence.",
 )
+
+uploaded_fasta_file = st.file_uploader(
+    "**You can also upload a (multi-)FASTA file instead:**", type=[".fasta",".fa"]
+)
+
+if uploaded_fasta_file is not None:
+    text_io = uploaded_fasta_file.read().decode("UTF-8")
+    original_fasta_str = text_io
+    
+  
+
 with StringIO(original_fasta_str) as fio:
     records = list(SeqIO.parse(fio, "fasta"))
 if len(records) == 0:
-    st.warning(f"Found zero valid records in text box, should have one.")
+    st.warning(f"Found zero valid records in textbox, should have one.")
     st.stop()
 
 
@@ -308,19 +341,19 @@ with st.expander("Advanced Settings"):
             min_value=1,
             max_value=20,
             step=1,
-            help="The default value will ensure lower DNA synthesis diffculty due to less repetitive sequences. Changing to a lower value not recommended."
+            help="This will ensure lower DNA synthesis diffculty due to less repetitive codons. Changing to a lower value might further lower synthesis difficulty but can also result in an unsolvable constraint."
         )
     with uniquify_kmers[1]:
         kmers_rev = st.checkbox(
             "Include reverse complement",
             value=True,
-            help="Uniquify the k-mers of the reverse complement."
+            help="Uniquify the k-mers of the reverse complement as well."
         )
        
     randomize_numpy_seed = st.checkbox(
         "Numpy random generator",
         value=False,
-        help="This ensures reproducible results. With this checked, an identical input seqeunce will always result in an identical output. However, unchecking this should not affect codon optimization result."
+        help="This ensures reproducible results. With this unchecked, an identical input sequence will always result in an identical output. However, checking this should not affect codon optimization result."
         )
     
         
@@ -332,11 +365,11 @@ with st.expander("Advanced Settings"):
 
 # Do some input validation.
 if not target_coding_table:
-    st.warning("Must specify a target organism.")
+    st.warning("Please specify a target organism.")
     st.stop()
 if optimization_method == "harmonize_rca":
     if not source_coding_table:
-        st.warning("Must specify a source organism if using harmonize_rca method.")
+        st.warning("Please specify a source organism if using the harmonize_rca method.")
         st.stop()
     codon_optimize_kwargs = {"original_codon_usage_table": source_coding_table}
 else:
@@ -387,14 +420,23 @@ except Exception as e:
     st.warning(e)
     st.stop()
 
-
-with st.expander("DNA Chisel Logs"):
-    for log in constraints_logs + objectives_logs:
-        st.text(log)
-
+result_list=[]
 for record, recoding in zip(records, recodings):
     if optimization_method == 'harmonize_rca':
         notes = f'method: {optimization_method}, source_taxid: {source_taxid}, target_taxid: {target_taxid}'  
     else:
-        notes = f'method: {optimization_method}, target_taxid: {target_taxid}'  
-    st.text(f">{record.id} ({notes})\n{recoding}")
+        notes = f'method: {optimization_method}, target_taxid: {target_taxid}'
+    
+    record_result = f">{record.id} ({notes}) Please cite us :) \n{recoding}\n"
+    result_list.append(record_result)
+   
+st.download_button(label="**Download result(s)**", 
+                    data = "".join(str(j) for j in result_list),
+                    file_name = datetime.now().strftime("%Y%m%d-%I%M%S%p_") + "BaseBuddy_results" + ".fasta",
+                    )   
+st.text_area("Or copy your result(s) from this textbox:","".join(str(j) for j in result_list))
+
+with st.expander("Optimization Logs"):
+    for log in constraints_logs + objectives_logs:
+        st.text(log)
+

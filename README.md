@@ -10,6 +10,8 @@ A web app for recoding genes by organism.
 * Decompress the cocoput table: `cd data && tar -xvf cocoput_table.tsv.tar.gz && cd ..`
 * Run streamlit in docker: `./run_locally.sh`
 
+* Just type bash run_locally.sh into terminal and done
+
 # TODOs
 - [ ] Uploading fasta files (for multiplexing) - should download fasta when finished
 - [ ] Advanced options: Make all options configurable (esp homopolymers and RE cut sites)
