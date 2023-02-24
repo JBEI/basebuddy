@@ -2,7 +2,9 @@ pandas
 streamlit==1.17.0
 dnachisel
 biopython
-streamlit-searchbox
+git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_searchbox
+# -e git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_searchbox
+# /app/streamlit-searchbox
 thefuzz
 streamlit-modal
 streamlit-keyup

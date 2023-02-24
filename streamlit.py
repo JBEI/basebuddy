@@ -22,13 +22,14 @@ from st_keyup import st_keyup
 # For that reason, and cleanliness, that DB has been copied to a data/ directory.
 # COCOPUTS_DB_FNAME = '220916_codon_analysis/o537-Refseq_species.tsv'
 COCOPUTS_DB_FNAME = "data/cocoput_table.tsv"
+COCOPUTS_INDEX_FNAME = "data/cocoput_index.csv"
 
 
 # @st.experimental_memo
 @st.experimental_singleton
-def get_cocoput_organism_series():
+def get_cocoput_organism_index():
     # df = pd.read_csv('220916_codon_analysis/220926_genome_codons.tsv', sep='\t', index_col=False)
-    df = pd.read_csv(COCOPUTS_DB_FNAME, sep="\t", index_col=False)
+    df = pd.read_csv(COCOPUTS_INDEX_FNAME, index_col=False)
     # df = pd.read_csv('220916_codon_analysis/o537-genbank_species.tsv', sep='\t', index_col=False)
     return pd.Series(
         df.apply(lambda r: f"{r['Species']} (TaxID: {r['Taxid']})", axis=1)
@@ -38,13 +39,13 @@ def get_cocoput_organism_series():
 
 @st.experimental_singleton
 def get_cocoput_organism_list():
-    return get_cocoput_organism_series().tolist()
+    return get_cocoput_organism_index().tolist()
 
 
 def search_organisms(searchterm) -> List[str]:
     # print(f'search term: {searchterm}', flush=True)
     print(f'Searching for {searchterm}', flush=True)
-    matches = get_cocoput_organism_series()
+    matches = get_cocoput_organism_index()
     matches = matches[reduce((lambda a, b: a & b), [matches.str.lower().str.contains(t.lower()) for t in searchterm.split()])]
     # for term in [t.lower() for t in searchterm.split()]:
     #     matches = matches[matches.str.contains(term)]
@@ -197,7 +198,7 @@ with col1:
     )
 
 with col2:
-    target_searchterm = st_keyup('Search for a target organism:')
+    # target_searchterm = st_keyup('Search for a target organism:')
     # st.dataframe(
     #     pd.DataFrame({'organism': search_organisms(target_searchterm)}, index=None),
     #     use_container_width=True
@@ -218,23 +219,23 @@ with col2:
     # st.write(styler.to_html(), unsafe_allow_html=True)
     # st.table(search_organisms(target_searchterm))
 
-    target_organism = st.selectbox("**Target Organism**", get_cocoput_organism_list())
-    # st.caption('**Target Organism**')
-    # target_organism = (st_searchbox(
-    #     search_organisms,
-    #     key="target_searchbox",
-    # ) or "")
+    # target_organism = st.selectbox("**Target Organism**", get_cocoput_organism_list())
+    st.caption('**Target Organism**')
+    target_organism = (st_searchbox(
+        search_organisms,
+        key="target_searchbox",
+    ) or "")
     # print(f'TARGET: {target_organism}', flush=True)
 
     target_taxid = get_taxid_from_cocoput_name(target_organism) if target_organism else None
     target_coding_table = get_codon_table_for_taxid(target_taxid) if target_taxid else None
 
     if optimization_method == "harmonize_rca":
-        # source_organism =  (st_searchbox(
-        #     search_organisms,
-        #     key="source_organism",
-        # ) or "")  #st.selectbox("**Source Organism**", get_cocoput_organism_list())
-        source_organism = st.selectbox("**Source Organism**", get_cocoput_organism_list())
+        source_organism =  (st_searchbox(
+            search_organisms,
+            key="source_organism",
+        ) or "")  #st.selectbox("**Source Organism**", get_cocoput_organism_list())
+        # source_organism = st.selectbox("**Source Organism**", get_cocoput_organism_list())
 
         source_taxid = get_taxid_from_cocoput_name(source_organism) if source_organism else None
         source_coding_table = get_codon_table_for_taxid(source_taxid) if source_taxid else None
