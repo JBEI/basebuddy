@@ -14,7 +14,9 @@ from Bio.Restriction.Restriction_Dictionary import rest_dict
 from streamlit_searchbox import st_searchbox
 from thefuzz import process
 from functools import reduce
-
+from streamlit_modal import Modal
+import streamlit.components.v1 as components
+from st_keyup import st_keyup
 
 # Note that this, which is gitignored, is also excluded from gcloud builds.
 # For that reason, and cleanliness, that DB has been copied to a data/ directory.
@@ -179,13 +181,43 @@ with col1:
         "**Optimization Method**",
         ["use_best_codon", "match_codon_usage", "harmonize_rca"],
         key="visibility",
-        # help='Choose the optimization method, harmonize_rca is recommended.'
+        help='Choose a codon optimization method. See details on the [DNAChisel website](https://edinburgh-genome-foundry.github.io/DnaChisel/ref/builtin_specifications.html#codon-optimization-specifications).'
+        # label_visibility=st.session_state.visibility,
+        # disabled=st.session_state.disabled,
+        # horizontal=st.session_state.horizontal,
+    )
+    database = st.radio(
+        "**Database**",
+        ["CoCoPUTs", "Kazusa"],
+        key="database",
+        help='Choose a codon usage table database. CoCoPUTs is recommended.'
         # label_visibility=st.session_state.visibility,
         # disabled=st.session_state.disabled,
         # horizontal=st.session_state.horizontal,
     )
 
 with col2:
+    target_searchterm = st_keyup('Search for a target organism:')
+    # st.dataframe(
+    #     pd.DataFrame({'organism': search_organisms(target_searchterm)}, index=None),
+    #     use_container_width=True
+    # )
+    # hide_table_row_index = """
+    # <style>
+    # tr:first-child {display:none}
+    # tbody th {display:none}
+    # </style>
+    # """
+    # # Inject CSS with Markdown
+    # st.markdown(hide_table_row_index, unsafe_allow_html=True)
+    # # st.table(search_organisms(target_searchterm))
+    # df = pd.DataFrame(search_organisms(target_searchterm))
+    # st.dataframe(df)
+
+    # styler = df.style.hide_index()
+    # st.write(styler.to_html(), unsafe_allow_html=True)
+    # st.table(search_organisms(target_searchterm))
+
     target_organism = st.selectbox("**Target Organism**", get_cocoput_organism_list())
     # st.caption('**Target Organism**')
     # target_organism = (st_searchbox(
@@ -210,19 +242,21 @@ with col2:
         source_coding_table = None
 
 
-original_fasta_str = st.text_area(
-    "**Insert your native nucleotide sequence(s) in FASTA format:**",
-    ">example_sequence1\nATGAGTAGT\n>example_sequence2\nATGGTGAATTTG",
-    help=f"It is important to only use the native coding sequence because some optimization methods calculate the relative codon adaptation (RCA) based on the inserted sequence.",
-)
+paste_tab, upload_tab = st.tabs(['Paste', 'Fasta Upload'])
 
-uploaded_fasta_file = st.file_uploader(
-    "**You can also upload a (multi-)FASTA file instead:**", type=[".fasta",".fa"]
-)
-
-if uploaded_fasta_file is not None:
-    text_io = uploaded_fasta_file.read().decode("UTF-8")
-    original_fasta_str = text_io
+with paste_tab:
+    original_fasta_str = st.text_area(
+        "**Insert your native nucleotide sequence(s) in FASTA format:**",
+        ">example_sequence1\nATGAGTAGT\n>example_sequence2\nATGGTGAATTTG",
+        help=f"It is important to only use the native coding sequence because some optimization methods calculate the relative codon adaptation (RCA) based on the inserted sequence.",
+    )
+with upload_tab:
+    uploaded_fasta_file = st.file_uploader(
+        "**You can also upload a (multi-)FASTA file instead:**", type=[".fasta",".fa"]
+    )
+    if uploaded_fasta_file is not None:
+        text_io = uploaded_fasta_file.read().decode("UTF-8")
+        original_fasta_str = text_io
     
   
 
@@ -367,13 +401,30 @@ with st.expander("Advanced Settings"):
 if not target_coding_table:
     st.warning("Please specify a target organism.")
     st.stop()
-if optimization_method == "harmonize_rca":
-    if not source_coding_table:
-        st.warning("Please specify a source organism if using the harmonize_rca method.")
-        st.stop()
-    codon_optimize_kwargs = {"original_codon_usage_table": source_coding_table}
+
+
+if database == 'CoCoPUTs':
+    codon_optimize_kwargs = {
+        "codon_usage_table": target_coding_table
+    }
+    if optimization_method == "harmonize_rca":
+        if not source_coding_table:
+            st.warning("Please specify a source organism if using the harmonize_rca method.")
+            st.stop()
+        codon_optimize_kwargs["original_codon_usage_table"] = source_coding_table
+
+elif database == 'Kazusa':
+    codon_optimize_kwargs = {
+        "species": target_taxid
+    }
+    if optimization_method == "harmonize_rca":
+        if not source_taxid:
+            st.warning("Please specify a source organism if using the harmonize_rca method.")
+            st.stop()
+        codon_optimize_kwargs["original_species"] = source_taxid
+        
 else:
-    codon_optimize_kwargs = {}
+    raise KeyError(f'Unrecognized database {database}. Maybe the database dropdown was reformatted?')
 
 constraints_logs = []
 objectives_logs = []
@@ -402,7 +453,6 @@ try:
             objectives=[
                 CodonOptimize(
                     method=optimization_method,
-                    codon_usage_table=target_coding_table,
                     **codon_optimize_kwargs,
                 )
             ],
@@ -429,12 +479,15 @@ for record, recoding in zip(records, recodings):
     
     record_result = f">{record.id} ({notes}) Please cite us :) \n{recoding}\n"
     result_list.append(record_result)
-   
+
+
 st.download_button(label="**Download result(s)**", 
                     data = "".join(str(j) for j in result_list),
                     file_name = datetime.now().strftime("%Y%m%d-%I%M%S%p_") + "BaseBuddy_results" + ".fasta",
                     )   
-st.text_area("Or copy your result(s) from this textbox:","".join(str(j) for j in result_list))
+st.text_area(
+    "Or copy your result(s) from this textbox:","".join(str(j) for j in result_list)
+)
 
 with st.expander("Optimization Logs"):
     for log in constraints_logs + objectives_logs:

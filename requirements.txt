@@ -4,3 +4,5 @@ dnachisel
 biopython
 streamlit-searchbox
 thefuzz
+streamlit-modal
+streamlit-keyup
