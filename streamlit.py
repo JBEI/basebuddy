@@ -188,10 +188,10 @@ with col1:
         # horizontal=st.session_state.horizontal,
     )
     database = st.radio(
-        "**Database**",
+        "**Codon Usage Database**",
         ["CoCoPUTs", "Kazusa"],
         key="database",
-        help='Choose a codon usage table database. CoCoPUTs is recommended.'
+        help='Choose a codon usage table database. CoCoPUTs is considered more accurate and up-to-date.'
         # label_visibility=st.session_state.visibility,
         # disabled=st.session_state.disabled,
         # horizontal=st.session_state.horizontal,
@@ -231,6 +231,7 @@ with col2:
     target_coding_table = get_codon_table_for_taxid(target_taxid) if target_taxid else None
 
     if optimization_method == "harmonize_rca":
+        st.caption("**Source Organism**")
         source_organism =  (st_searchbox(
             search_organisms,
             key="source_organism",
@@ -243,7 +244,7 @@ with col2:
         source_coding_table = None
 
 
-paste_tab, upload_tab = st.tabs(['Paste', 'Fasta Upload'])
+paste_tab, upload_tab = st.tabs(['Paste', 'FASTA Upload'])
 
 with paste_tab:
     original_fasta_str = st.text_area(
@@ -253,7 +254,7 @@ with paste_tab:
     )
 with upload_tab:
     uploaded_fasta_file = st.file_uploader(
-        "**You can also upload a (multi-)FASTA file instead:**", type=[".fasta",".fa"]
+        "**Upload your (multi-)FASTA file here:**", type=[".fasta",".fa"]
     )
     if uploaded_fasta_file is not None:
         text_io = uploaded_fasta_file.read().decode("UTF-8")
