@@ -8,3 +8,4 @@ git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_sear
 thefuzz
 streamlit-modal
 streamlit-keyup
+altair<5

@@ -135,12 +135,10 @@ Instructions:
 
 4.) Click the "Download Result(s)" button to generate a FASTA file with your optimized sequence(s).
 
-This is the beta version of BaseBuddy and the layout might differ from the final version. 
-However, basic codon optimizations should work as expected. 
-Also, check out the advanced settings if you have special requirements for your optimized sequence 
-(e.g. avoiding certain cut sites other than our default set).
+Check out the advanced settings if you have special requirements for your optimized sequence 
+(e.g. avoiding certain cut sites other than our default set or lowering synthesis difficulty).
 
-For questions or concerns please email Matthias (mschmidt@lbl.gov) or Jacob (JBR@lbl.gov)
+For questions or concerns please visit https://github.com/JBEI/basebuddy
 """
 )
 
