@@ -12,6 +12,7 @@ If you use this tool, please cite the BaseBuddy paper (Schmidt et al. 2023) and 
 
 > Matthias Schmidt, Namil Lee, Chunjun Zhan, Jacob B. Roberts, Alberto A. Nava, Leah S. Keiser, Aaron A. Vilchez, Yan Chen, Christopher J. Petzold, Robert W. Haushalter, Lars M. Blank, and Jay D. Keasling
 ACS Synthetic Biology 2023 12 (11), 3366-3380, https://doi.org/10.1021/acssynbio.3c00367
+> 
 > Valentin Zulkower, Susan Rosser, DNA Chisel, a versatile sequence optimizer, Bioinformatics, Volume 36, Issue 16, August 2020, Pages 4508–4509, https://doi.org/10.1093/bioinformatics/btaa558.
 
 ## To Run Locally
