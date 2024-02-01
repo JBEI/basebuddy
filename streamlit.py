@@ -125,20 +125,20 @@ with c2:
     st.image("resources/logo/png/logo-no-background.png")  # , width=500
 
 st.write("""
-Instructions:
+**Instructions:**
 
-1.) Choose your desired optimization method.
+**1.) Choose your desired optimization method.**
 
-2.) Specify your target organism.
+**2.) Specify your target organism.**
 
-3.) Paste your coding sequence(s) into the textbox below and press Enter or upload a (multi-)FASTA file.
+**3.) Paste your coding sequence(s) into the textbox below and press Enter or upload a (multi-)FASTA file.**
 
-4.) Click the "Download Result(s)" button to generate a FASTA file with your optimized sequence(s).
+**4.) Click the "Download Result(s)" button to generate a FASTA file with your optimized sequence(s).**
 
 Check out the advanced settings if you have special requirements for your optimized sequence 
-(e.g. avoiding certain cut sites other than our default set or lowering synthesis difficulty).
+(e.g. avoiding certain cut sites or patterns, or lowering synthesis difficulty). 
 
-For questions or concerns please visit https://github.com/JBEI/basebuddy
+For further questions or concerns please visit https://github.com/JBEI/basebuddy
 """
 )
 
@@ -266,9 +266,20 @@ if len(records) == 0:
     st.warning(f"Found zero valid records in textbox, should have one.")
     st.stop()
 
+def process_substring(substring):
+    # Convert substring to uppercase, strip whitespace
+    return substring.strip().upper()
+
+def validate_input_string(input_string):
+    allowed_chars = {'A', 'T', 'G', 'C', ','}
+    for char in input_string:
+        if char.upper() not in allowed_chars and char != ',' and not char.isspace():
+            return False
+    return True
 
 # A list of constraints to impose, including cut site constraints.
 cut_site_constraints = []
+custom_pattern_constraints = []
 
 with st.expander("Advanced Settings"):
     homopolycols = st.columns(4)
@@ -361,11 +372,37 @@ with st.expander("Advanced Settings"):
         )
         
 
-    restriction_sites = st.multiselect("Avoid cut sites",options=rest_dict,
+    restriction_sites = st.multiselect(
+        "Avoid cut sites",
+        options=rest_dict,
         default=['BamHI', 'NdeI', 'XhoI', 'SpeI', 'BsaI']
         )
     for restricition_site in restriction_sites:
         cut_site_constraints.append(AvoidPattern(restricition_site+"_site")) 
+
+    # Get Avoid custom pattern string from the user
+    input_string = st.text_input(
+        "Avoid custom pattern(s)",
+        placeholder="e.g. atta, gggtttaaa, ...",
+        help='''Adding a single DNA sequence or multiple sequences divided by commas will avoid that specific sequence pattern on both strands. Only As, Ts, Gs, Cs, or commas are allowed (not case-sensitive). For example, the input:"atta, agggt" will avoid the sequence pattern "ATTA" and "AGGGT" in the optimized output.'''
+    )
+
+    
+    if input_string.strip():  # Check if input_string is not empty after stripping whitespace
+        if validate_input_string(input_string):
+            # Split the input string by commas
+            input_sequences = input_string.split(',')
+            
+            # Process each input sequence and create constraints
+            for sequence in input_sequences:
+                processed_sequence = process_substring(sequence)
+                if processed_sequence:  # Check if the processed sequence is non-empty
+                    custom_pattern_constraints.append(AvoidPattern(processed_sequence))  # Assuming AvoidPattern accepts the processed sequence
+        else:
+            st.warning("Error: Input string contains invalid characters. Only 'As', 'Ts', 'Gs', 'Cs', or commas are allowed.")
+    
+
+
 
     uniquify_kmers = st.columns(2)
     with uniquify_kmers[0]:
@@ -449,7 +486,8 @@ try:
                 AvoidPattern(str(poly_g_maxlength) + "xG"),
                 EnforceGCContent(mini=gc_minimum, maxi=gc_maximum, window=gc_window),
                 EnforceTranslation(),
-            ] + cut_site_constraints,
+                
+            ] + cut_site_constraints + custom_pattern_constraints,
             objectives=[
                 CodonOptimize(
                     method=optimization_method,
@@ -492,4 +530,3 @@ st.text_area(
 with st.expander("Optimization Logs"):
     for log in constraints_logs + objectives_logs:
         st.text(log)
-
