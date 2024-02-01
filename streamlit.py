@@ -20,17 +20,14 @@ from st_keyup import st_keyup
 
 # Note that this, which is gitignored, is also excluded from gcloud builds.
 # For that reason, and cleanliness, that DB has been copied to a data/ directory.
-# COCOPUTS_DB_FNAME = '220916_codon_analysis/o537-Refseq_species.tsv'
 COCOPUTS_DB_FNAME = "data/cocoput_table.tsv"
 COCOPUTS_INDEX_FNAME = "data/cocoput_index.csv"
 
 
-# @st.experimental_memo
 @st.experimental_singleton
 def get_cocoput_organism_index():
-    # df = pd.read_csv('220916_codon_analysis/220926_genome_codons.tsv', sep='\t', index_col=False)
+    """Load an index of all organisms available in the CoCoPuts database."""
     df = pd.read_csv(COCOPUTS_INDEX_FNAME, index_col=False)
-    # df = pd.read_csv('220916_codon_analysis/o537-genbank_species.tsv', sep='\t', index_col=False)
     return pd.Series(
         df.apply(lambda r: f"{r['Species']} (TaxID: {r['Taxid']})", axis=1)
         .unique()
@@ -39,32 +36,22 @@ def get_cocoput_organism_index():
 
 @st.experimental_singleton
 def get_cocoput_organism_list():
+    """Return the index as a list."""
     return get_cocoput_organism_index().tolist()
 
 
 def search_organisms(searchterm) -> List[str]:
-    # print(f'search term: {searchterm}', flush=True)
+    """Search the cocoput index for the given search term."""
     print(f'Searching for {searchterm}', flush=True)
     matches = get_cocoput_organism_index()
     matches = matches[reduce((lambda a, b: a & b), [matches.str.lower().str.contains(t.lower()) for t in searchterm.split()])]
-    # for term in [t.lower() for t in searchterm.split()]:
-    #     matches = matches[matches.str.contains(term)]
     if matches.shape[0] > 100:
         matches = matches.iloc[:100]
-    # def matches_filter(item):
-    #     item_lower = item.lower()
-    #     for term in terms:
-    #         if not term.contains(item_lower):
-    #             return False
-    #     return True
-    # matches = [t for t in get_cocoput_organism_list() if matches_filter(t)]
-    # matches = process.extract(searchterm, get_cocoput_organism_list(), 50)
-    # matches = get_close_matches(searchterm, get_cocoput_organism_list(), 50)
-    # print(matches, flush=True)
-    return matches.tolist() #[match[0] for match in matches]
+    return matches.tolist()
 
 
 def get_taxid_from_cocoput_name(cocoput_name):
+    """Extract the TaxID from the cocoput name, which by convention ends with '(TaxID: ###)'."""
     rematch = re.match(r".*\(TaxID: (\d+)\)", cocoput_name)
     assert rematch, f"Somehow the cocoput name was poorly formatted, {cocoput_name}"
     return int(rematch.groups()[0])
@@ -98,6 +85,7 @@ AA_TO_CODON: Dict[str, List[str]] = {
 def convert_cocoputs_table_to_dnachisel(
     codon_table_counts: dict,
 ) -> Dict[str, Dict[str, float]]:
+    """Convert the CoCoPuts codon usage table to a DNAChisel codon usage table."""
     new_codon_table: Dict[str, Dict[str, float]] = {}
     for aa in AA_TO_CODON:
         new_codon_table[aa] = {}
@@ -109,6 +97,7 @@ def convert_cocoputs_table_to_dnachisel(
 
 @st.experimental_memo
 def get_codon_table_for_taxid(taxid):
+    """Return the CoCoPuts codon usage table for the given TaxID."""
     df = pd.read_csv(COCOPUTS_DB_FNAME, sep="\t", index_col=False)
     subset = df[df.Taxid == taxid]
     row = subset[subset["# CDS"] == subset["# CDS"].max()].iloc[0]
@@ -118,7 +107,6 @@ def get_codon_table_for_taxid(taxid):
 
 
 st.set_page_config(page_title="BaseBuddy")
-# st.header('''BaseBuddy''')
 
 c1, c2, c3 = st.columns((1, 5, 1))
 with c2:
@@ -181,49 +169,20 @@ with col1:
         ["use_best_codon", "match_codon_usage", "harmonize_rca"],
         key="visibility",
         help='Choose a codon optimization method. See details on the [DNAChisel website](https://edinburgh-genome-foundry.github.io/DnaChisel/ref/builtin_specifications.html#codon-optimization-specifications).'
-        # label_visibility=st.session_state.visibility,
-        # disabled=st.session_state.disabled,
-        # horizontal=st.session_state.horizontal,
     )
     database = st.radio(
         "**Codon Usage Database**",
         ["CoCoPUTs", "Kazusa"],
         key="database",
         help='Choose a codon usage table database. CoCoPUTs is considered more accurate and up-to-date.'
-        # label_visibility=st.session_state.visibility,
-        # disabled=st.session_state.disabled,
-        # horizontal=st.session_state.horizontal,
     )
 
 with col2:
-    # target_searchterm = st_keyup('Search for a target organism:')
-    # st.dataframe(
-    #     pd.DataFrame({'organism': search_organisms(target_searchterm)}, index=None),
-    #     use_container_width=True
-    # )
-    # hide_table_row_index = """
-    # <style>
-    # tr:first-child {display:none}
-    # tbody th {display:none}
-    # </style>
-    # """
-    # # Inject CSS with Markdown
-    # st.markdown(hide_table_row_index, unsafe_allow_html=True)
-    # # st.table(search_organisms(target_searchterm))
-    # df = pd.DataFrame(search_organisms(target_searchterm))
-    # st.dataframe(df)
-
-    # styler = df.style.hide_index()
-    # st.write(styler.to_html(), unsafe_allow_html=True)
-    # st.table(search_organisms(target_searchterm))
-
-    # target_organism = st.selectbox("**Target Organism**", get_cocoput_organism_list())
     st.caption('**Target Organism**')
     target_organism = (st_searchbox(
         search_organisms,
         key="target_searchbox",
     ) or "")
-    # print(f'TARGET: {target_organism}', flush=True)
 
     target_taxid = get_taxid_from_cocoput_name(target_organism) if target_organism else None
     target_coding_table = get_codon_table_for_taxid(target_taxid) if target_taxid else None
@@ -233,8 +192,7 @@ with col2:
         source_organism =  (st_searchbox(
             search_organisms,
             key="source_organism",
-        ) or "")  #st.selectbox("**Source Organism**", get_cocoput_organism_list())
-        # source_organism = st.selectbox("**Source Organism**", get_cocoput_organism_list())
+        ) or "")
 
         source_taxid = get_taxid_from_cocoput_name(source_organism) if source_organism else None
         source_coding_table = get_codon_table_for_taxid(source_taxid) if source_taxid else None
@@ -426,12 +384,6 @@ with st.expander("Advanced Settings"):
         value=False,
         help="This ensures reproducible results. With this unchecked, an identical input sequence will always result in an identical output. However, checking this should not affect codon optimization result."
         )
-    
-        
-
-    
-    
-    
 
 
 # Do some input validation.
